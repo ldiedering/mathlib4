@@ -28,57 +28,47 @@ open Set Measure Filter TopologicalSpace
 
 variable {α : Type*} {m0 : MeasurableSpace α}
 
+def IsAtom (s : Set α) (μ : Measure α) :=
+  0 < μ s ∧ ∀ t ⊆ s, MeasurableSet t → μ t = 0 ∨ μ t = μ s
+
 /-- Measure `μ` *has no atoms* if for any measurable set `s` with positive `μ`-measure,
 there exists a measurable `t ⊆ s` such that `0 < μ t < μ s`. While this implies `μ {x} = 0`,
 the converse is not true. -/
 class NoAtoms' (μ : Measure α) : Prop where
-  exists_subset_lt : ∀ s, MeasurableSet s → 0 < μ s → ∃ t ⊆ s, 0 < μ t ∧ μ t < μ s
+  no_atoms : ∀ s, MeasurableSet s → ¬ IsAtom s μ
 
-export MeasureTheory.NoAtoms' (exists_subset_lt)
-
-variable {μ : Measure α} [na : NoAtoms' μ]
+export MeasureTheory.NoAtoms' (no_atoms)
 
 namespace NoAtoms'
 
---TODO: do we really need `MeasurableSingletonClass α`
-instance [MeasurableSingletonClass α] : NoAtoms μ where
-  measure_singleton := by
-    intro x
-    have := na.exists_subset_lt {x} (measurableSet_singleton _)
-    by_contra! hx
-    rw [← ENNReal.bot_eq_zero, ← bot_lt_iff_ne_bot] at hx
-    rcases this hx with ⟨t, htx, ht, ht'⟩
-    rw [subset_singleton_iff_eq] at htx
-    rcases htx with h | h
-    · rw [h] at ht
-      simp at ht
-    · rw [h] at ht'
-      simp at ht'
+variable {μ : Measure α}
 
---TODO: move
-theorem measure_comap_eq_subtype_coe {α : Type*} {m0 : MeasurableSpace α} {μ : Measure α}
-  {s : Set α} (hs : NullMeasurableSet s μ) {t : Set s}
-  (ht : NullMeasurableSet t (μ.comap Subtype.val)) :
-    μ.comap Subtype.val t = μ (((↑) : s → α) '' t) :=
-  comap_apply₀ _ _ Subtype.coe_injective (fun _ => MeasurableSet.nullMeasurableSet_subtype_coe hs)
-    ht
+theorem no_atoms_iff :
+    NoAtoms' μ
+      ↔ ∀ s, MeasurableSet s → 0 < μ s → ∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s := by
+  constructor
+  · intro na s meas_s hs
+    have := na.no_atoms
+    unfold IsAtom at this
+    push Not at this
+    rcases this s meas_s hs with ⟨t, ts, meas_t, ht, ht'⟩
+    rw [← ENNReal.bot_eq_zero, ← bot_lt_iff_ne_bot] at ht
+    use t, ts, meas_t, ht, lt_of_le_of_ne (measure_mono ts) ht'
+  · intro h
+    apply NoAtoms'.mk
+    intro s meas_s
+    unfold IsAtom
+    push Not
+    intro hs
+    rcases h s meas_s hs with ⟨t, ts, meas_t, ht, ht'⟩
+    use t, ts, meas_t, ht.ne', ht'.ne
 
-instance subtype {s : Set α} (hs : MeasurableSet s) : NoAtoms' (μ.comap Subtype.val : Measure s)
-    where
-  exists_subset_lt := by
-    intro t meas_t ht
-    rw [comap_subtype_coe_apply hs] at ht
-    rcases na.exists_subset_lt t (hs.subtype_image meas_t) ht with ⟨r, hrt, hr, hr'⟩
-    use Subtype.val ⁻¹' r, preimage_subset hrt injOn_subtype_val
-    rw [comap_subtype_coe_apply hs, comap_subtype_coe_apply hs, image_preimage_eq_of_subset]
-    · use hr, hr'
-    · intro x hx
-      apply image_subset_range _ t
-      exact hrt hx
-
-theorem exists_measurable_subset_lt {s : Set α} (meas_s : MeasurableSet s) (hs : 0 < μ s) :
-    ∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s := by
-  rcases exists_subset_lt _ meas_s hs with ⟨t, hst, ht, hts⟩
+theorem mk' {μ : Measure α}
+  (h : ∀ s, MeasurableSet s → 0 < μ s → ∃ t ⊆ s, 0 < μ t ∧ μ t < μ s) :
+    NoAtoms' μ := by
+  rw [no_atoms_iff]
+  intro s meas_s hs
+  rcases h _ meas_s hs with ⟨t, hst, ht, hts⟩
   rcases exists_measurable_superset μ t with ⟨u, htu, hu, hut⟩
   use u ∩ s
   use inter_subset_right
@@ -95,6 +85,46 @@ theorem exists_measurable_subset_lt {s : Set α} (meas_s : MeasurableSet s) (hs 
         _ ≤ μ (u ∩ s) := by gcongr
   rw [this]
   use ht, hts
+
+variable [na : NoAtoms' μ]
+
+theorem exists_measurable_subset_lt {s : Set α} (meas_s : MeasurableSet s) (hs : 0 < μ s) :
+    ∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s := no_atoms_iff.mp na s meas_s hs
+
+--TODO: do we really need `MeasurableSingletonClass α`
+instance [MeasurableSingletonClass α] : NoAtoms μ where
+  measure_singleton := by
+    intro x
+    by_contra! hx
+    rw [← ENNReal.bot_eq_zero, ← bot_lt_iff_ne_bot] at hx
+    rcases exists_measurable_subset_lt (measurableSet_singleton _) hx with ⟨t, htx, _, ht, ht'⟩
+    rw [subset_singleton_iff_eq] at htx
+    rcases htx with h | h
+    · rw [h] at ht
+      simp at ht
+    · rw [h] at ht'
+      simp at ht'
+
+--TODO: move
+theorem measure_comap_eq_subtype_coe {α : Type*} {m0 : MeasurableSpace α} {μ : Measure α}
+  {s : Set α} (hs : NullMeasurableSet s μ) {t : Set s}
+  (ht : NullMeasurableSet t (μ.comap Subtype.val)) :
+    μ.comap Subtype.val t = μ (((↑) : s → α) '' t) :=
+  comap_apply₀ _ _ Subtype.coe_injective (fun _ => MeasurableSet.nullMeasurableSet_subtype_coe hs)
+    ht
+
+instance subtype {s : Set α} (hs : MeasurableSet s) : NoAtoms' (μ.comap Subtype.val : Measure s) :=
+    by
+  apply NoAtoms'.mk'
+  intro t meas_t ht
+  rw [comap_subtype_coe_apply hs] at ht
+  rcases na.exists_measurable_subset_lt (hs.subtype_image meas_t) ht with ⟨r, hrt, _, hr, hr'⟩
+  use Subtype.val ⁻¹' r, preimage_subset hrt injOn_subtype_val
+  rw [comap_subtype_coe_apply hs, comap_subtype_coe_apply hs, image_preimage_eq_of_subset]
+  · use hr, hr'
+  · intro x hx
+    apply image_subset_range _ t
+    exact hrt hx
 
 theorem exists_measurable_subset_lt₀ {s : Set α} (hs : NullMeasurableSet s μ) (hs' : 0 < μ s) :
     ∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s := by
