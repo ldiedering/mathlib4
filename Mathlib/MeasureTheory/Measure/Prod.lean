@@ -8,6 +8,7 @@ module
 public import Mathlib.MeasureTheory.Measure.GiryMonad
 public import Mathlib.MeasureTheory.Measure.OpenPos
 public import Mathlib.MeasureTheory.Measure.Doubling
+public import Mathlib.MeasureTheory.Measure.Typeclasses.NoAtoms'
 
 /-!
 # The product measure
@@ -227,6 +228,44 @@ theorem prod_apply {s : Set (α × β)} (hs : MeasurableSet s) :
     μ.prod ν s = ∫⁻ x, ν (Prod.mk x ⁻¹' s) ∂μ := by
   simp_rw [Measure.prod, bind_apply hs (Measurable.map_prodMk_left (ν := ν)).aemeasurable,
     map_apply measurable_prodMk_left hs]
+
+instance prod.instNoAtoms'_fst [na : NoAtoms' μ] :
+    NoAtoms' (Measure.prod μ ν) := by
+  rw [NoAtoms'.no_atoms_iff]
+  intro s meas_s hs
+  rw [prod_apply meas_s] at hs
+  set a := {x | 0 < ν (Prod.mk x ⁻¹' s)}
+  have meas_a : MeasurableSet a := by
+    refine measurableSet_lt ?_ ?_
+    · fun_prop
+    · exact measurable_measure_prodMk_left meas_s
+  have ha : 0 < μ a := by
+    sorry
+  rw [NoAtoms'.no_atoms_iff] at na
+  rcases na a meas_a ha with ⟨b, hba, meas_b, hb, hba'⟩
+  use s ∩ (b.prod univ), inter_subset_left
+  have meas_t : MeasurableSet (s ∩ b.prod univ) := meas_s.inter (meas_b.prod MeasurableSet.univ)
+  use meas_t
+  rw [prod_apply meas_t, prod_apply meas_s]
+  constructor
+  · rw [lintegral_pos_iff_support (measurable_measure_prodMk_left meas_t)]
+    convert hb
+    ext x
+    simp only [preimage_inter, mem_support, ne_eq]
+    have : b.prod univ = b ×ˢ (univ : Set β) := rfl
+    constructor
+    · contrapose!
+      intro hx
+      rw [this, mk_preimage_prod_right_eq_empty hx, inter_empty, measure_empty]
+    · intro hx
+      rw [this, mk_preimage_prod_right hx, inter_univ]
+      exact (hba hx).ne'
+  · apply lintegral_strict_mono_of_ae_le_of_frequently_ae_lt sorry
+    · sorry --TODO: show that we may assume s to be finite by sigma finiteness?
+    · sorry --easy
+    · sorry
+
+
 
 /-- The product measure of the product of two sets is the product of their measures. Note that we
 do not need the sets to be measurable. -/
