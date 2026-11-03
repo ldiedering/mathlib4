@@ -51,6 +51,7 @@ namespace Measure
 
 /-- An *atom* of a measure `μ` is a measurable set `s` of positive measure for which all
 measurable subsets have measure either `0` or `μ s`. -/
+@[mk_iff]
 structure IsAtom (μ : Measure α) (s : Set α) : Prop where
   measurableSet : MeasurableSet s
   pos : 0 < μ s
@@ -59,33 +60,29 @@ structure IsAtom (μ : Measure α) (s : Set α) : Prop where
 theorem isAtom_iff_not_exists :
     μ.IsAtom s ↔
       MeasurableSet s ∧ 0 < μ s ∧ ¬∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s := by
-  refine ⟨fun h ↦ ⟨h.measurableSet, h.pos, ?_⟩, fun ⟨hs, hμs, h⟩ ↦ ⟨hs, hμs, fun t hts ht ↦ ?_⟩⟩
-  · rintro ⟨t, hts, ht, ht₀, hts'⟩
-    rcases h.measure_eq_zero_or_eq t hts ht with h' | h'
-    · exact ht₀.ne' h'
-    · exact hts'.ne h'
-  · by_contra! h'
-    exact h ⟨t, hts, ht, pos_iff_ne_zero.2 h'.1, (measure_mono hts).lt_of_ne h'.2⟩
+  simp only [isAtom_iff, not_exists, not_and, not_lt]
+  congr! with t hts
+  grind [zero_lt_iff, measure_mono (μ := μ) hts]
 
-theorem not_isAtom_iff (hs : MeasurableSet s) (hμs : 0 < μ s) :
-    ¬μ.IsAtom s ↔ ∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s := by
-  simp [isAtom_iff_not_exists, hs, hμs]
-
+--TODO: check if we want theorem; golf proof
 theorem isAtom_singleton_iff [MeasurableSingletonClass α] {x : α} :
     μ.IsAtom {x} ↔ 0 < μ {x} := by
+  --rw [isAtom_iff]
   refine ⟨IsAtom.pos, fun h ↦ ⟨measurableSet_singleton x, h, fun t hts _ ↦ ?_⟩⟩
   rcases subset_singleton_iff_eq.1 hts with rfl | rfl <;> simp
 
 theorem IsAtom.measure_ne_zero (h : μ.IsAtom s) : μ s ≠ 0 :=
   h.pos.ne'
 
+--TODO: check if we want this theorem
 theorem IsAtom.nonempty (h : μ.IsAtom s) : s.Nonempty :=
   nonempty_of_measure_ne_zero h.measure_ne_zero
 
 theorem _root_.MeasurableEquiv.isAtom_map_iff (e : α ≃ᵐ β) {s : Set β} :
     (μ.map e).IsAtom s ↔ μ.IsAtom (e ⁻¹' s) := by
   simp only [isAtom_iff_not_exists, e.map_apply, e.measurableSet_preimage]
-  refine and_congr_right fun _ ↦ and_congr_right fun _ ↦ not_congr ⟨?_, ?_⟩
+  congr!
+  constructor
   · rintro ⟨t, hts, ht, h⟩
     exact ⟨e ⁻¹' t, preimage_mono hts, e.measurableSet_preimage.2 ht, h⟩
   · rintro ⟨t, hts, ht, h⟩
@@ -100,21 +97,21 @@ measurable set `s` with `0 < μ s` contains a measurable `t` with `0 < μ t < μ
 
 This implies `NullSingletonClass μ` for s-finite measures, see
 `NoAtoms.instNullSingletonClass_of_sfinite`, but the converse is not true. -/
+@[mk_iff]
 class NoAtoms (μ : Measure α) : Prop where
   not_isAtom : ∀ s, ¬μ.IsAtom s
 
-theorem noAtoms_iff :
+theorem noAtoms_iff' :
     NoAtoms μ ↔
       ∀ s, MeasurableSet s → 0 < μ s → ∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s := by
-  refine ⟨fun h s hs hμs ↦ (not_isAtom_iff hs hμs).1 (h.not_isAtom s), fun h ↦ ⟨fun s hs ↦ ?_⟩⟩
-  exact (not_isAtom_iff hs.measurableSet hs.pos).2 (h s hs.measurableSet hs.pos) hs
+  simp [noAtoms_iff, isAtom_iff_not_exists]
 
 namespace NoAtoms
 
 /-- A version of `noAtoms_iff` in which the subset `t` need not be measurable. -/
 theorem mk' (h : ∀ s, MeasurableSet s → 0 < μ s → ∃ t ⊆ s, 0 < μ t ∧ μ t < μ s) :
     NoAtoms μ := by
-  refine noAtoms_iff.2 fun s hs hμs ↦ ?_
+  refine noAtoms_iff'.2 fun s hs hμs ↦ ?_
   obtain ⟨t, hts, ht, hts'⟩ := h s hs hμs
   obtain ⟨u, htu, hu, hut⟩ := exists_measurable_superset μ t
   have : μ (u ∩ s) = μ t :=
@@ -126,7 +123,7 @@ variable [NoAtoms μ]
 
 theorem exists_measurable_subset_lt (hs : MeasurableSet s) (hμs : 0 < μ s) :
     ∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s :=
-  noAtoms_iff.1 ‹_› s hs hμs
+  noAtoms_iff'.1 ‹_› s hs hμs
 
 theorem exists_measurable_subset_lt₀ (hs : NullMeasurableSet s μ) (hμs : 0 < μ s) :
     ∃ t ⊆ s, MeasurableSet t ∧ 0 < μ t ∧ μ t < μ s := by
@@ -198,13 +195,14 @@ instance instNullSingletonClass [MeasurableSingletonClass (NullMeasurableSpace �
 instance instNullSingletonClass_of_sfinite [SFinite μ] : NullSingletonClass μ where
   measure_singleton x := by
     by_contra! hx
-    refine not_isAtom (μ := μ) (toMeasurable μ {x})
-      ⟨measurableSet_toMeasurable _ _, by rwa [measure_toMeasurable, pos_iff_ne_zero], ?_⟩
+    apply not_isAtom (μ := μ) (toMeasurable μ {x})
+    rw [Measure.isAtom_iff]
+    use measurableSet_toMeasurable _ _
+    constructor
+    · rwa [measure_toMeasurable, pos_iff_ne_zero]
     intro t hty ht
     rw [← inter_eq_right.2 hty, measure_toMeasurable_inter_of_sfinite ht, measure_toMeasurable]
-    by_cases hxt : x ∈ t
-    · simp [hxt]
-    · simp [hxt]
+    by_cases hxt : x ∈ t <;> simp [hxt]
 
 /-- The restriction of a measure without atoms to a null measurable set has no atoms. For
 s-finite measures, see the instance `Measure.restrict.instNoAtoms` for arbitrary sets. -/
@@ -217,18 +215,6 @@ theorem restrict (hs : NullMeasurableSet s μ) : NoAtoms (μ.restrict s) := by
   rw [restrict_apply ht, restrict_apply₀' hs, inter_eq_left.2 (hrts.trans inter_subset_right)]
   exact ⟨hr₀, hrts'⟩
 
-/-- The restriction of a measure without atoms to a measurable subset, seen as a measure on the
-subtype, has no atoms. -/
-theorem comap_subtype_val (hs : MeasurableSet s) :
-    NoAtoms (μ.comap ((↑) : s → α)) := by
-  refine mk' fun t ht hμt ↦ ?_
-  rw [comap_subtype_coe_apply hs μ t] at hμt
-  obtain ⟨r, hrt, -, hr₀, hrt'⟩ := exists_measurable_subset_lt (hs.subtype_image ht) hμt
-  refine ⟨(↑) ⁻¹' r, preimage_subset hrt Subtype.val_injective.injOn, ?_⟩
-  rw [comap_subtype_coe_apply hs μ t, comap_subtype_coe_apply hs μ,
-    image_preimage_eq_of_subset (hrt.trans (image_subset_range _ t))]
-  exact ⟨hr₀, hrt'⟩
-
 end NoAtoms
 
 instance Measure.restrict.instNoAtoms [NoAtoms μ] [SFinite μ] (s : Set α) :
@@ -237,8 +223,8 @@ instance Measure.restrict.instNoAtoms [NoAtoms μ] [SFinite μ] (s : Set α) :
   exact NoAtoms.restrict (measurableSet_toMeasurable μ s).nullMeasurableSet
 
 theorem _root_.MeasurableEquiv.noAtoms_map_iff (e : α ≃ᵐ β) : NoAtoms (μ.map e) ↔ NoAtoms μ := by
-  refine ⟨fun h ↦ ⟨fun s hs ↦ h.not_isAtom (e.symm ⁻¹' s) ?_⟩,
-    fun h ↦ ⟨fun s hs ↦ h.not_isAtom _ (e.isAtom_map_iff.1 hs)⟩⟩
+  rw [noAtoms_iff, noAtoms_iff]
+  refine ⟨fun h s hs ↦ (h (e.symm ⁻¹' s)) ?_, fun h s hs ↦ h _ (e.isAtom_map_iff.1 hs)⟩
   rwa [e.isAtom_map_iff, ← preimage_comp, e.symm_comp_self, preimage_id]
 
 instance _root_.MeasurableEquiv.instNoAtomsMap [NoAtoms μ] (e : α ≃ᵐ β) : NoAtoms (μ.map e) :=
