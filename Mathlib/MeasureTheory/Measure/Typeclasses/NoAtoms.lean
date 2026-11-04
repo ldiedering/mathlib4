@@ -64,17 +64,14 @@ theorem isAtom_iff_not_exists :
   congr! with t hts
   grind [zero_lt_iff, measure_mono (μ := μ) hts]
 
---TODO: check if we want theorem; golf proof
 theorem isAtom_singleton_iff [MeasurableSingletonClass α] {x : α} :
     μ.IsAtom {x} ↔ 0 < μ {x} := by
-  --rw [isAtom_iff]
   refine ⟨IsAtom.pos, fun h ↦ ⟨measurableSet_singleton x, h, fun t hts _ ↦ ?_⟩⟩
   rcases subset_singleton_iff_eq.1 hts with rfl | rfl <;> simp
 
 theorem IsAtom.measure_ne_zero (h : μ.IsAtom s) : μ s ≠ 0 :=
   h.pos.ne'
 
---TODO: check if we want this theorem
 theorem IsAtom.nonempty (h : μ.IsAtom s) : s.Nonempty :=
   nonempty_of_measure_ne_zero h.measure_ne_zero
 
